@@ -15,6 +15,7 @@ import (
 type Message struct {
 	Username string `json:"username"`
 	Text     string `json:"text"`
+	Type     string `json:"type"`
 }
 
 // var (
@@ -59,6 +60,11 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 	defer ws.Close()
 	clients[ws] = true
 
+	query := r.URL.Query()
+	username := query.Get("username")
+
+	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s joined the chat.", username), Type: "join"}
+
 	for {
 		var msg Message
 
@@ -73,6 +79,8 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 		broadcaster <- msg
 	}
+
+	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s left the chat.", username), Type: "left"}
 }
 
 // If a message is sent while a client is closing, ignore the error
