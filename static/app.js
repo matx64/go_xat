@@ -6,9 +6,9 @@ const messageInput = document.getElementById("message-input")
 const messagesList = document.getElementById("messages-list")
 
 const preDefinedTexts = {
-    "standard": (text, username) => `<li class="list-group-item"><strong>${username}</strong>: ${text}</li>`,
-    "join": (text, _username) => `<li class="list-group-item text-success"><strong>${text}</strong></li>`,
-    "left": (text, _username) => `<li class="list-group-item text-danger"><strong>${text}</strong></li>`,
+    "standard": (text, sentAt, username) => `<li class="list-group-item">${sentAt} <strong>${username}</strong>: ${text}</li>`,
+    "join": (text, sentAt, _username) => `<li class="list-group-item text-success">${sentAt} <strong>${text}</strong></li>`,
+    "left": (text, sentAt, _username) => `<li class="list-group-item text-danger">${sentAt} <strong>${text}</strong></li>`,
 }
 
 connectForm.addEventListener("submit", function (e) {
@@ -30,7 +30,8 @@ function setupWebSocket() {
 
     window.ws.addEventListener("message", function (e) {
         const data = JSON.parse(e.data)
-        const message = preDefinedTexts[data.type](data.text, data.username)
+        data.sentAt = new Date(data.sentAt * 1000).toLocaleTimeString()
+        const message = preDefinedTexts[data.type](data.text, data.sentAt, data.username)
 
         messagesList.innerHTML += message
     })
@@ -44,7 +45,8 @@ function setupMessageForm() {
             JSON.stringify({
                 username: window.username,
                 text: messageInput.value,
-                type: "standard"
+                type: "standard",
+                sentAt: Math.floor(Date.now() / 1000)
             })
         )
 

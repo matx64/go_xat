@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	_ "github.com/go-redis/redis"
 	"github.com/gorilla/websocket"
@@ -16,6 +17,7 @@ type Message struct {
 	Username string `json:"username"`
 	Text     string `json:"text"`
 	Type     string `json:"type"`
+	SentAt   int64  `json:"sentAt"`
 }
 
 // var (
@@ -63,7 +65,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	username := query.Get("username")
 
-	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s joined the chat.", username), Type: "join"}
+	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s joined the chat.", username), Type: "join", SentAt: time.Now().Unix()}
 
 	for {
 		var msg Message
@@ -80,7 +82,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		broadcaster <- msg
 	}
 
-	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s left the chat.", username), Type: "left"}
+	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s left the chat.", username), Type: "left", SentAt: time.Now().Unix()}
 }
 
 // If a message is sent while a client is closing, ignore the error
