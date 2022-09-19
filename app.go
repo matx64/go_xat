@@ -14,6 +14,7 @@ import (
 )
 
 type Message struct {
+	RoomId   string `json:"roomId"`
 	Username string `json:"username"`
 	Text     string `json:"text"`
 	Type     string `json:"type"`
@@ -29,7 +30,7 @@ var upgrader = websocket.Upgrader{
 		return true
 	},
 }
-var clients = make(map[*websocket.Conn]bool)
+var clients = make(map[string]map[*websocket.Conn]bool)
 var broadcaster = make(chan Message)
 
 func main() {
@@ -60,12 +61,18 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	defer ws.Close()
-	clients[ws] = true
 
 	query := r.URL.Query()
 	username := query.Get("username")
+	roomId := query.Get("roomId")
 
-	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s joined the chat.", username), Type: "join", SentAt: time.Now().Unix()}
+	if val, ok := clients[roomId]; ok {
+		val[ws] = true
+	} else {
+		clients[roomId] = map[*websocket.Conn]bool{ws: true}
+	}
+
+	broadcaster <- Message{RoomId: roomId, Username: username, Text: fmt.Sprintf("%s joined the chat.", username), Type: "join", SentAt: time.Now().Unix()}
 
 	for {
 		var msg Message
@@ -73,7 +80,7 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		err = ws.ReadJSON(&msg)
 		if err != nil {
 			log.Printf("Reading error: %#v\n", err)
-			delete(clients, ws)
+			delete(clients[roomId], ws)
 			break
 		}
 
@@ -82,7 +89,12 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		broadcaster <- msg
 	}
 
-	broadcaster <- Message{Username: username, Text: fmt.Sprintf("%s left the chat.", username), Type: "left", SentAt: time.Now().Unix()}
+	if len(clients[roomId]) == 0 {
+		delete(clients, roomId)
+		return
+	}
+
+	broadcaster <- Message{RoomId: roomId, Username: username, Text: fmt.Sprintf("%s left the chat.", username), Type: "left", SentAt: time.Now().Unix()}
 }
 
 // If a message is sent while a client is closing, ignore the error
@@ -93,12 +105,13 @@ func unsafeError(err error) bool {
 func handleMessages() {
 	for {
 		msg := <-broadcaster
+		roomId := msg.RoomId
 
-		for client := range clients {
+		for client := range clients[roomId] {
 			err := client.WriteJSON(msg)
 			if err != nil && unsafeError(err) {
 				log.Printf("Write error: %v", err)
-				delete(clients, client)
+				delete(clients[roomId], client)
 				client.Close()
 			}
 		}
