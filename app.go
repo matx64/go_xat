@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -8,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	_ "github.com/go-redis/redis"
+	"github.com/go-redis/redis"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 )
@@ -21,9 +22,9 @@ type Message struct {
 	SentAt   int64  `json:"sentAt"`
 }
 
-// var (
-// 	db *redis.Client
-// )
+var (
+	rdb *redis.Client
+)
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -36,14 +37,14 @@ var broadcaster = make(chan Message)
 func main() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatalf("Error loading .env file")
+		log.Fatal("Error loading .env file")
 	}
 
-	// db = redis.NewClient(&redis.Options{
-	// 	Addr:     os.Getenv("REDIS_ADDR"),
-	// 	Password: os.Getenv("REDIS_PASSWORD"),
-	// 	DB:       0,
-	// })
+	rdb = redis.NewClient(&redis.Options{
+		Addr:     os.Getenv("REDIS_ADDR"),
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0,
+	})
 
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	http.HandleFunc("/connect", handleConnection)
@@ -68,6 +69,11 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 
 	if val, ok := clients[roomId]; ok {
 		val[ws] = true
+
+		if rdb.Exists("room:"+roomId+":messages").Val() != 0 {
+			sendPreviousMessages(ws, roomId)
+		}
+
 	} else {
 		clients[roomId] = map[*websocket.Conn]bool{ws: true}
 	}
@@ -97,23 +103,54 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 	broadcaster <- Message{RoomId: roomId, Username: username, Text: fmt.Sprintf("%s left the chat.", username), Type: "left", SentAt: time.Now().Unix()}
 }
 
-// If a message is sent while a client is closing, ignore the error
-func unsafeError(err error) bool {
-	return !websocket.IsCloseError(err, websocket.CloseGoingAway) && err != io.EOF
+func sendPreviousMessages(ws *websocket.Conn, roomId string) {
+	messages, err := rdb.LRange("room:"+roomId+":messages", 0, -1).Result()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, message := range messages {
+		var msg Message
+		json.Unmarshal([]byte(message), &msg)
+		messageClient(ws, msg)
+	}
+}
+
+func messageClient(ws *websocket.Conn, msg Message) {
+	err := ws.WriteJSON(msg)
+	if err != nil && unsafeError(err) {
+		log.Printf("Write error: %v", err)
+		ws.Close()
+		delete(clients[msg.RoomId], ws)
+	}
+}
+
+func messageClients(msg Message) {
+	for client := range clients[msg.RoomId] {
+		messageClient(client, msg)
+	}
 }
 
 func handleMessages() {
 	for {
 		msg := <-broadcaster
-		roomId := msg.RoomId
-
-		for client := range clients[roomId] {
-			err := client.WriteJSON(msg)
-			if err != nil && unsafeError(err) {
-				log.Printf("Write error: %v", err)
-				delete(clients[roomId], client)
-				client.Close()
-			}
-		}
+		storeInRedis(msg)
+		messageClients(msg)
 	}
+}
+
+func storeInRedis(msg Message) {
+	json, err := json.Marshal(msg)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := rdb.RPush("room:"+msg.RoomId+":messages", json).Err(); err != nil {
+		panic(err)
+	}
+}
+
+// If a message is sent while a client is closing, ignore the error
+func unsafeError(err error) bool {
+	return !websocket.IsCloseError(err, websocket.CloseGoingAway) && err != io.EOF
 }
