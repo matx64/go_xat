@@ -74,8 +74,6 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 			sendPreviousMessages(ws, roomId)
 		}
 
-		// handleRoomUsers(ws, roomId, username)
-
 	} else {
 		clients[roomId] = map[*websocket.Conn]bool{ws: true}
 	}
@@ -103,10 +101,6 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		if err := rdb.Del("room:" + roomId + ":messages").Err(); err != nil {
 			panic(err)
 		}
-
-		// if err := rdb.Del("room:" + roomId + ":users").Err(); err != nil {
-		// 	panic(err)
-		// }
 
 		return
 	}
@@ -141,12 +135,6 @@ func messageClients(msg Message) {
 		messageClient(client, msg)
 	}
 }
-
-// func handleRoomUsers(ws *websocket.Conn, roomId string, username string) {
-// 	if err := rdb.LPush("room:"+roomId+":users", username).Err(); err != nil {
-// 		panic(err)
-// 	}
-// }
 
 func handleMessages() {
 	for {

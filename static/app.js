@@ -13,17 +13,21 @@ let roomUsers = new Set()
 
 const handleMessage = {
     "normal": (text, sentAt, username) => {
-        messagesList.innerHTML += `<li class="list-group-item">${sentAt} <strong>${username}</strong>: ${text}</li>`
+        if(username == window.username){
+            messagesList.innerHTML += `<li class="list-group-item text-end">${text} ${sentAt}</li>`
+        }else{
+            messagesList.innerHTML += `<li class="list-group-item ${username == window.username ? "text-end" : ""}">${sentAt} <strong>${username}</strong>: ${text}</li>`
+        }
     },
     "join": (text, sentAt, username) => {
         roomUsers.add(username)
         usersList.innerHTML += `<li class="list-group-item" id="user-${username}"><strong>${username}</strong></li>`
-        messagesList.innerHTML += `<li class="list-group-item text-success">${sentAt} <strong>${text}</strong></li>`
+        messagesList.innerHTML += `<li class="list-group-item text-success text-center"><strong>${text}</strong> ${sentAt}</li>`
     },
     "left": (text, sentAt, username) => {
         roomUsers.delete(username)
         document.getElementById("user-" + username).remove()
-        messagesList.innerHTML += `<li class="list-group-item text-danger">${sentAt} <strong>${text}</strong></li>`
+        messagesList.innerHTML += `<li class="list-group-item text-danger text-center">${sentAt} <strong>${text}</strong></li>`
     }
 }
 
