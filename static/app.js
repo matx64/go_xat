@@ -14,20 +14,27 @@ let roomUsers = new Set()
 const handleMessage = {
     "normal": (text, sentAt, username) => {
         if(username == window.username){
-            messagesList.innerHTML += `<li class="list-group-item text-end">${text} ${sentAt}</li>`
+            messagesList.innerHTML += `<div class="d-inline-flex flex-column text-white rounded bg-primary p-3 my-2">
+                <div class="text-break">${text}</div> 
+                <div class="fs-6 fw-light text-end">${sentAt}</div>
+            </div>`
         }else{
-            messagesList.innerHTML += `<li class="list-group-item ${username == window.username ? "text-end" : ""}">${sentAt} <strong>${username}</strong>: ${text}</li>`
+            messagesList.innerHTML += `<div class="d-inline-flex flex-column text-white rounded bg-warning p-3 my-2">
+                <div class="fw-bold">${username}</div> 
+                <div class="text-break">${text}</div> 
+                <div class="fs-6 fw-light text-end">${sentAt}</div>
+            </div>`
         }
     },
     "join": (text, sentAt, username) => {
         roomUsers.add(username)
-        usersList.innerHTML += `<li class="list-group-item" id="user-${username}"><strong>${username}</strong></li>`
-        messagesList.innerHTML += `<li class="list-group-item text-success text-center"><strong>${text}</strong> ${sentAt}</li>`
+        usersList.innerHTML += `<div class="text-white" id="user-${username}"><strong>${username}</strong></div>`
+        messagesList.innerHTML += `<div class="text-success text-center my-2"><strong>${text}</strong> ${sentAt}</div>`
     },
     "left": (text, sentAt, username) => {
         roomUsers.delete(username)
         document.getElementById("user-" + username).remove()
-        messagesList.innerHTML += `<li class="list-group-item text-danger text-center">${sentAt} <strong>${text}</strong></li>`
+        messagesList.innerHTML += `<div class="text-danger text-center">${sentAt} <strong>${text}</strong></div>`
     }
 }
 
@@ -43,8 +50,6 @@ connectForm.addEventListener("submit", function (e) {
     roomDisplay.innerHTML = "Room " + roomInput.value
     connectForm.classList.add("d-none")
     conversationDiv.classList.remove("d-none")
-    messageForm.classList.remove("d-none")
-    quitForm.classList.remove("d-none")
 })
 
 function setupWebSocket() {
