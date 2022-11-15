@@ -8,33 +8,34 @@ const conversationDiv = document.getElementById("conversation-div")
 const messagesList = document.getElementById("messages-list")
 const usersList = document.getElementById("users-list")
 const roomDisplay = document.getElementById("room-display")
+const chatScroll = document.getElementById("chat-scroll")
 
 let roomUsers = new Set()
 
 const handleMessage = {
     "normal": (text, sentAt, username) => {
         if(username == window.username){
-            messagesList.innerHTML += `<div class="d-inline-flex flex-column text-white rounded bg-primary p-3 my-2">
+            messagesList.innerHTML += `<div class="m-2"><div class="d-flex flex-column text-white rounded p-3 float-end msg-sent">
                 <div class="text-break">${text}</div> 
                 <div class="fs-6 fw-light text-end">${sentAt}</div>
-            </div>`
+            </div></div>`
         }else{
-            messagesList.innerHTML += `<div class="d-inline-flex flex-column text-white rounded bg-warning p-3 my-2">
+            messagesList.innerHTML += `<div class="m-2"><div class="d-flex flex-column text-white rounded p-3 float-start msg-received">
                 <div class="fw-bold">${username}</div> 
                 <div class="text-break">${text}</div> 
                 <div class="fs-6 fw-light text-end">${sentAt}</div>
-            </div>`
+            </div></div>`
         }
     },
     "join": (text, sentAt, username) => {
         roomUsers.add(username)
-        usersList.innerHTML += `<div class="text-white" id="user-${username}"><strong>${username}</strong></div>`
+        usersList.innerHTML += `<div class="text-white m-2 fs-6 fw-bold text-break" id="user-${username}">${username}</div>`
         messagesList.innerHTML += `<div class="text-success text-center my-2"><strong>${text}</strong> ${sentAt}</div>`
     },
     "left": (text, sentAt, username) => {
         roomUsers.delete(username)
         document.getElementById("user-" + username).remove()
-        messagesList.innerHTML += `<div class="text-danger text-center">${sentAt} <strong>${text}</strong></div>`
+        messagesList.innerHTML += `<div class="text-danger text-center my-2"><strong>${text}</strong> ${sentAt}</div>`
     }
 }
 
@@ -50,6 +51,7 @@ connectForm.addEventListener("submit", function (e) {
     roomDisplay.innerHTML = "Room " + roomInput.value
     connectForm.classList.add("d-none")
     conversationDiv.classList.remove("d-none")
+    messageInput.focus()
 })
 
 function setupWebSocket() {
@@ -60,6 +62,7 @@ function setupWebSocket() {
         data.sentAt = new Date(data.sentAt * 1000).toLocaleTimeString()
 
         handleMessage[data.type](data.text, data.sentAt, data.username)
+        chatScroll.scrollIntoView({ behavior: "smooth", block: "end" })
     })
 }
 
