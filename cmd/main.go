@@ -49,8 +49,7 @@ func main() {
 func handleConnection(w http.ResponseWriter, r *http.Request, rdb *redis.Client, rooms map[string]models.Room) {
 	client, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Upgrade error: %v", err)
-		log.Fatal(err)
+		log.Fatalf("Upgrade error: %v", err)
 	}
 	defer client.Close()
 

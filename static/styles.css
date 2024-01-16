@@ -1,0 +1,29 @@
+.list-group-item {
+    background-color: black;
+    color: white;
+}
+
+#main-box,
+#users-list {
+    background-color: black;
+}
+
+.btn-success {
+    background-color: #396afc !important;
+}
+
+.msg-sent {
+    background-color: #396afc;
+}
+
+.msg-received {
+    background-color: #202020;
+}
+
+.text-success {
+    color: #00B295 !important;
+}
+
+.text-danger {
+    color: #da3e52 !important;
+}
