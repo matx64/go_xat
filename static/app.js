@@ -61,7 +61,7 @@ function setupWebSocket() {
         const data = JSON.parse(e.data)
         data.sentAt = new Date(data.sentAt * 1000).toLocaleTimeString()
 
-        handleMessage[data.type](data.text, data.sentAt, data.username)
+        handleMessage[data.kind](data.text, data.sentAt, data.username)
         chatScroll.scrollIntoView({ behavior: "smooth", block: "end" })
     })
 }
@@ -75,7 +75,7 @@ function setupMessageForm() {
                 roomId: window.roomId,
                 username: window.username,
                 text: messageInput.value,
-                type: "normal",
+                kind: "normal",
                 sentAt: Math.floor(Date.now() / 1000)
             })
         )

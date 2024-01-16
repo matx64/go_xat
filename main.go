@@ -7,25 +7,17 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
+	"github.com/matx64/go_xat/db"
+	"github.com/matx64/go_xat/models"
 )
 
-type Message struct {
-	RoomId   string `json:"roomId"`
-	Username string `json:"username"`
-	Text     string `json:"text"`
-	Type     string `json:"type"`
-	SentAt   int64  `json:"sentAt"`
-}
-
 var (
-	rdb         *redis.Client
 	clients     = make(map[string]map[*websocket.Conn]bool)
-	broadcaster = make(chan Message)
+	broadcaster = make(chan models.Message)
 )
 
 var upgrader = websocket.Upgrader{
@@ -35,27 +27,25 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	err := godotenv.Load(".env")
+	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
-	rdb = redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT"),
-		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       0,
-	})
+	rdb := db.StartRedis()
 
 	http.Handle("/", http.FileServer(http.Dir("./static")))
-	http.HandleFunc("/connect", handleConnection)
+	http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
+		handleConnection(w, r, rdb)
+	})
 
-	go handleMessages()
+	go handleMessages(rdb)
 
-	fmt.Println("Server started.")
+	fmt.Println("🚀 Server started.")
 	log.Fatal(http.ListenAndServe(os.Getenv("SERVER_HOST")+":"+os.Getenv("SERVER_PORT"), nil))
 }
 
-func handleConnection(w http.ResponseWriter, r *http.Request) {
+func handleConnection(w http.ResponseWriter, r *http.Request, rdb *redis.Client) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Upgrade error: %v", err)
@@ -72,17 +62,17 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		val[ws] = true
 
 		if rdb.Exists("room:"+roomId+":messages").Val() != 0 {
-			sendPreviousMessages(ws, roomId)
+			sendPreviousMessages(roomId, ws, rdb)
 		}
 
 	} else {
 		clients[roomId] = map[*websocket.Conn]bool{ws: true}
 	}
 
-	broadcaster <- Message{RoomId: roomId, Username: username, Text: fmt.Sprintf("%s joined the chat.", username), Type: "join", SentAt: time.Now().Unix()}
+	broadcaster <- models.NewMessage(roomId, username, "join", "")
 
 	for {
-		var msg Message
+		var msg models.Message
 
 		err = ws.ReadJSON(&msg)
 		if err != nil {
@@ -106,23 +96,23 @@ func handleConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	broadcaster <- Message{RoomId: roomId, Username: username, Text: fmt.Sprintf("%s left the chat.", username), Type: "left", SentAt: time.Now().Unix()}
+	broadcaster <- models.NewMessage(roomId, username, "left", "")
 }
 
-func sendPreviousMessages(ws *websocket.Conn, roomId string) {
+func sendPreviousMessages(roomId string, ws *websocket.Conn, rdb *redis.Client) {
 	messages, err := rdb.LRange("room:"+roomId+":messages", 0, -1).Result()
 	if err != nil {
 		panic(err)
 	}
 
 	for _, message := range messages {
-		var msg Message
+		var msg models.Message
 		json.Unmarshal([]byte(message), &msg)
 		messageClient(ws, msg)
 	}
 }
 
-func messageClient(ws *websocket.Conn, msg Message) {
+func messageClient(ws *websocket.Conn, msg models.Message) {
 	err := ws.WriteJSON(msg)
 	if err != nil && unsafeError(err) {
 		log.Printf("Write error: %v", err)
@@ -131,28 +121,17 @@ func messageClient(ws *websocket.Conn, msg Message) {
 	}
 }
 
-func messageClients(msg Message) {
+func messageClients(msg models.Message) {
 	for client := range clients[msg.RoomId] {
 		messageClient(client, msg)
 	}
 }
 
-func handleMessages() {
+func handleMessages(rdb *redis.Client) {
 	for {
 		msg := <-broadcaster
-		storeInRedis(msg)
+		db.StoreMessage(msg, rdb)
 		messageClients(msg)
-	}
-}
-
-func storeInRedis(msg Message) {
-	json, err := json.Marshal(msg)
-	if err != nil {
-		panic(err)
-	}
-
-	if err := rdb.RPush("room:"+msg.RoomId+":messages", json).Err(); err != nil {
-		panic(err)
 	}
 }
 
